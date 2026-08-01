@@ -360,16 +360,13 @@ export default function ReadingApp() {
         <section className="view active">
           <div className="scroll">
             <div className="eyebrow">Слова, которые учу</div>
-            <button
-              className={"cta-study" + (learn.length === 0 ? " empty" : "")}
-              onClick={() => learn.length > 0 && setToast("Режим повторения — отдельный экран, спроектируем следующим")}
-            >
+            <button className="cta-study empty">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="5" width="14" height="14" rx="2" />
                 <path d="M7 9h6M7 13h4" />
                 <path d="M21 7v10" />
               </svg>
-              {learn.length > 0 ? `Поучить слова (${learn.length})` : "Нечего повторять"}
+              Поучить слова (в разработке)
             </button>
             <div className="search">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
