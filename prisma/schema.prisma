@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  words Word[]
+  texts Text[]
+}
+
+// A word/phrase in the learner's personal dictionary.
+// `key` is the lemma identity shared across all occurrences of the same
+// word inside any text (e.g. every "she"/"her" occurrence points here).
+model Word {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  key       String
+  en        String
+  ru        String
+  status    String // 'know' | 'learn'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, key])
+}
+
+model Text {
+  id        String   @id @default(cuid())
+  title     String
+  sourceUrl String?
+  createdAt DateTime @default(now())
+
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  tokens Token[]
+}
+
+// One token of a tokenized text, in reading order.
+// Plain tokens (punctuation, proper nouns) have en/ru/key = null.
+model Token {
+  id        String  @id @default(cuid())
+  textId    String
+  text      Text    @relation(fields: [textId], references: [id], onDelete: Cascade)
+  order     Int
+  plain     String? // literal text for non-interactive tokens
+  key       String? // lemma key, links to Word.key for this profile
+  en        String?
+  ru        String?
+  introduce Boolean @default(false) // one of this text's curated new words
+  attached  Boolean @default(false) // no leading space (commas, periods)
+}
