@@ -16,6 +16,8 @@ export default function AdminPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
+  const [tgStatus, setTgStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [tgError, setTgError] = useState<string | null>(null);
 
   async function loadTexts() {
     const res = await fetch("/api/admin/texts");
@@ -56,9 +58,36 @@ export default function AdminPage() {
     loadTexts();
   }
 
+  async function onSetupTelegram() {
+    setTgStatus("loading");
+    setTgError(null);
+    const res = await fetch("/api/admin/telegram/setup", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setTgStatus("error");
+      setTgError(data.error ?? "Не получилось");
+      return;
+    }
+    setTgStatus("ok");
+  }
+
   return (
     <div className="admin">
-      <h1>Добавить текст</h1>
+      <h1>Telegram-бот</h1>
+      <p className="hint">
+        Одна кнопка настраивает всё: постоянную кнопку «Открыть» у бота и вебхук для команды /start. Нажимай, когда токен бота уже добавлен в Environment Variables на Vercel.
+      </p>
+      <button className="btn-secondary" onClick={onSetupTelegram} disabled={tgStatus === "loading"}>
+        {tgStatus === "loading" ? "Настраиваю..." : "Настроить бота"}
+      </button>
+      {tgStatus === "ok" && (
+        <p className="hint" style={{ marginTop: 12, color: "var(--accent-soft)" }}>
+          Готово — теперь напиши боту /start в Telegram.
+        </p>
+      )}
+      {tgStatus === "error" && <div className="admin-error" style={{ marginTop: 12 }}>{tgError}</div>}
+
+      <h1 style={{ marginTop: 48 }}>Добавить текст</h1>
       <p className="hint">Вставь английский текст — Claude переведёт его и разметит на слова. Ссылка на источник (видео/фото) необязательна.</p>
 
       <form onSubmit={onSubmit}>
