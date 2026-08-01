@@ -8,6 +8,7 @@ type TelegramWebApp = {
   setBackgroundColor: (color: string) => void;
   disableVerticalSwipes?: () => void;
   isExpanded: boolean;
+  initData: string;
 };
 
 declare global {
@@ -19,6 +20,10 @@ declare global {
 // True only when the app is actually running inside Telegram's WebView.
 export function isInTelegram() {
   return typeof window !== "undefined" && !!window.Telegram?.WebApp;
+}
+
+export function getTelegramInitData() {
+  return typeof window !== "undefined" ? window.Telegram?.WebApp?.initData || null : null;
 }
 
 export function initTelegramWebApp() {

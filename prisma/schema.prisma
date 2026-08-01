@@ -8,12 +8,14 @@ datasource db {
 }
 
 model Profile {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
+  id               String   @id @default(cuid())
+  name             String
+  telegramChatId   String?  @unique
+  telegramUsername String?
+  telegramFirstName String?
+  createdAt        DateTime @default(now())
 
   words Word[]
-  texts Text[]
 }
 
 // A word/phrase in the learner's personal dictionary.
@@ -33,14 +35,12 @@ model Word {
   @@unique([profileId, key])
 }
 
+// Texts are global — every profile reads the same set, added by the admin.
 model Text {
   id        String   @id @default(cuid())
   title     String
   sourceUrl String?
   createdAt DateTime @default(now())
-
-  profileId String
-  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   tokens Token[]
 }

@@ -8,7 +8,8 @@ const prisma = new PrismaClient();
 const tokens = [
   // Intro
   { kind: "word", ru: "Если", en: "if", key: "if", introduce: false },
-  { kind: "word", ru: "сомневаешься", en: "you're unsure", key: "unsure", introduce: true },
+  { kind: "word", ru: "ты", en: "you're", key: "you", introduce: false },
+  { kind: "word", ru: "не уверена", en: "unsure", key: "unsure", introduce: true },
   { kind: "word", ru: "в", en: "about", key: "about", introduce: false },
   { kind: "word", ru: "своих", en: "your", key: "your", introduce: false },
   { kind: "word", ru: "отношениях", en: "relationship", key: "relationship", introduce: false },
@@ -147,17 +148,13 @@ const tokens = [
   { kind: "plain", text: "?" },
 ];
 
-const existing = await prisma.profile.findFirst();
-const profile = existing ?? (await prisma.profile.create({ data: { name: "Профиль" } }));
-
-await prisma.text.deleteMany({ where: { profileId: profile.id } });
-await prisma.word.deleteMany({ where: { profileId: profile.id } });
+await prisma.text.deleteMany({});
+await prisma.word.deleteMany({});
 
 await prisma.text.create({
   data: {
     title: "5 вопросов о твоих отношениях",
     sourceUrl: "https://www.instagram.com/reel/DbTMolWKNia/?igsh=MW5laHdzbTVwMTht",
-    profileId: profile.id,
     tokens: {
       create: tokens.map((tok, order) =>
         tok.kind === "plain"
@@ -168,5 +165,5 @@ await prisma.text.create({
   },
 });
 
-console.log("Reset progress and seeded the real test text for profile", profile.id);
+console.log("Reset progress and seeded the real test text");
 await prisma.$disconnect();

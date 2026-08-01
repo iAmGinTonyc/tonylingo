@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getDefaultProfile } from "@/lib/profile";
+import { getCurrentProfile } from "@/lib/profile";
 
 export async function GET() {
-  const profile = await getDefaultProfile();
+  const profile = await getCurrentProfile();
   const words = await prisma.word.findMany({
     where: { profileId: profile.id },
     select: { key: true, en: true, ru: true, status: true },
@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "invalid body" }, { status: 400 });
   }
 
-  const profile = await getDefaultProfile();
+  const profile = await getCurrentProfile();
 
   const word = await prisma.word.upsert({
     where: { profileId_key: { profileId: profile.id, key } },

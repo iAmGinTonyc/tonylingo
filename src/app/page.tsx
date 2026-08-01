@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { initTelegramWebApp } from "@/lib/telegram";
+import { initTelegramWebApp, getTelegramInitData } from "@/lib/telegram";
 
 type Token =
   | { plain: string; key: null; en: null; ru: null; introduce: false }
@@ -11,8 +11,21 @@ type TextData = {
   id: string;
   title: string;
   sourceUrl: string | null;
+  createdAt: string;
   tokens: Token[];
 };
+
+type TextSummary = { id: string; title: string; createdAt: string };
+
+function isSameDay(a: Date, b: Date) {
+  return a.toDateString() === b.toDateString();
+}
+
+function dayLabel(iso: string) {
+  const d = new Date(iso);
+  if (isSameDay(d, new Date())) return "Сегодня";
+  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+}
 
 type WordStatus = "know" | "learn";
 type WordsMap = Record<string, { en: string; ru: string; status: WordStatus }>;
@@ -32,19 +45,21 @@ export default function ReadingApp() {
   const [searchKnow, setSearchKnow] = useState("");
   const [searchLearn, setSearchLearn] = useState("");
   const [toast, setToast] = useState<string | null>(null);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveList, setArchiveList] = useState<TextSummary[] | null>(null);
+  const [splashName, setSplashName] = useState<string | null>(null);
+  const [splashHiding, setSplashHiding] = useState(false);
 
   const appRef = useRef<HTMLDivElement>(null);
   const tokenRefs = useRef<Record<number, HTMLElement | null>>({});
   const popupRef = useRef<HTMLDivElement>(null);
   const [popup, setPopup] = useState<{ index: number; left: number; top: number; arrowLeft: number } | null>(null);
 
-  useEffect(() => {
-    initTelegramWebApp();
-    fetch("/api/texts/latest")
+  function fetchText(id?: string) {
+    fetch(id ? `/api/texts/${id}` : "/api/texts/latest")
       .then((r) => r.json())
-      .then((d) => setText(d.text));
-    reloadWords();
-  }, []);
+      .then((d) => setText(d.text ?? null));
+  }
 
   function reloadWords() {
     fetch("/api/words")
@@ -56,6 +71,50 @@ export default function ReadingApp() {
         }
         setWords(map);
       });
+  }
+
+  useEffect(() => {
+    initTelegramWebApp();
+
+    async function boot() {
+      const initData = getTelegramInitData();
+      if (initData) {
+        try {
+          const res = await fetch("/api/telegram/auth", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ initData }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.firstName) setSplashName(data.firstName as string);
+          }
+        } catch {
+          // not signed in — carry on with the fallback profile
+        }
+      }
+
+      const deepLinkId = new URLSearchParams(window.location.search).get("text") ?? undefined;
+      fetchText(deepLinkId);
+      reloadWords();
+    }
+
+    boot();
+  }, []);
+
+  useEffect(() => {
+    if (!splashName) return;
+    const t = setTimeout(() => setSplashHiding(true), 3200);
+    return () => clearTimeout(t);
+  }, [splashName]);
+
+  function openArchive() {
+    setArchiveOpen(true);
+    if (archiveList === null) {
+      fetch("/api/texts")
+        .then((r) => r.json())
+        .then((d) => setArchiveList(d.texts));
+    }
   }
 
   async function setStatus(key: string, en: string, ru: string, status: WordStatus) {
@@ -142,10 +201,21 @@ export default function ReadingApp() {
                 Пока нет текстов — жди, когда появится первый.
               </div>
             )}
-            {text && (
+            {text && !archiveOpen && (
               <>
                 <div className="eyebrow-row">
-                  <div className="eyebrow">Текст дня</div>
+                  <div className="eyebrow-left">
+                    <div className="eyebrow">{dayLabel(text.createdAt)}</div>
+                    <button
+                      className="archive-link"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openArchive();
+                      }}
+                    >
+                      Архив
+                    </button>
+                  </div>
                   {text.sourceUrl && (
                     <a className="source-link" href={text.sourceUrl} target="_blank" rel="noopener">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -196,6 +266,47 @@ export default function ReadingApp() {
                     );
                   })}
                 </p>
+              </>
+            )}
+
+            {archiveOpen && (
+              <>
+                <div className="archive-header">
+                  <button
+                    className="archive-back"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setArchiveOpen(false);
+                    }}
+                    aria-label="Назад к чтению"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15 5l-7 7 7 7" />
+                    </svg>
+                  </button>
+                  <span className="archive-title">Архив текстов</span>
+                </div>
+                <div className="list">
+                  {archiveList === null && <div className="empty-state">Загрузка...</div>}
+                  {archiveList?.length === 0 && <div className="empty-state">Пока пусто</div>}
+                  {archiveList?.map((t) => {
+                    const today = isSameDay(new Date(t.createdAt), new Date());
+                    return (
+                      <button
+                        key={t.id}
+                        className="archive-row"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fetchText(t.id);
+                          setArchiveOpen(false);
+                        }}
+                      >
+                        <span className="archive-row-title">{t.title}</span>
+                        <span className={"archive-row-date" + (today ? " today" : "")}>{dayLabel(t.createdAt)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </>
             )}
           </div>
@@ -354,6 +465,20 @@ export default function ReadingApp() {
       )}
 
       <div className={"toast" + (toast ? " show" : "")}>{toast}</div>
+
+      {splashName && (
+        <div
+          className={"splash" + (splashHiding ? " hide" : "")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setSplashHiding(true);
+          }}
+        >
+          <p className="splash-text">
+            ты знаешь инглиш потому что ты <b>{splashName}</b>, или ты <b>{splashName}</b> потому что ты знаешь инглиш
+          </p>
+        </div>
+      )}
     </div>
   );
 }

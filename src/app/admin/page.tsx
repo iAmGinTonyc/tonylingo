@@ -26,7 +26,9 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    loadTexts();
+    (async () => {
+      await loadTexts();
+    })();
   }, []);
 
   async function onSubmit(e: React.FormEvent) {

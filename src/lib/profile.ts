@@ -1,10 +1,21 @@
 import { prisma } from "@/lib/prisma";
+import { getProfileIdFromCookies } from "@/lib/profileAuth";
 
-// Single-profile app for now — this always returns (and lazily creates)
-// the one learner profile. Swap for real multi-profile lookup (e.g. by
-// Telegram id) once there's more than one reader.
+// Fallback profile for admin/dev use and for anyone opening the app
+// outside Telegram (no signed-in identity yet).
 export async function getDefaultProfile() {
   const existing = await prisma.profile.findFirst();
   if (existing) return existing;
   return prisma.profile.create({ data: { name: "Профиль" } });
+}
+
+// Resolves the profile for the current request: the Telegram-identified
+// profile from the session cookie if present, otherwise the fallback.
+export async function getCurrentProfile() {
+  const profileId = await getProfileIdFromCookies();
+  if (profileId) {
+    const profile = await prisma.profile.findUnique({ where: { id: profileId } });
+    if (profile) return profile;
+  }
+  return getDefaultProfile();
 }

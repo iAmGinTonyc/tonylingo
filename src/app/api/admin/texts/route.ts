@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getDefaultProfile } from "@/lib/profile";
 import { tokenizeText } from "@/lib/anthropic";
+import { notifyNewText } from "@/lib/telegramBot";
 
 export async function GET() {
-  const profile = await getDefaultProfile();
   const texts = await prisma.text.findMany({
-    where: { profileId: profile.id },
     orderBy: { createdAt: "desc" },
     select: { id: true, title: true, sourceUrl: true, createdAt: true },
   });
@@ -22,18 +20,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Вставь текст" }, { status: 400 });
   }
 
-  const profile = await getDefaultProfile();
-
-  const words = await prisma.word.findMany({
-    where: { profileId: profile.id },
-    select: { key: true, status: true },
-  });
-  const knownKeys = words.filter((w) => w.status === "know").map((w) => w.key);
-  const learningKeys = words.filter((w) => w.status === "learn").map((w) => w.key);
+  // Texts are shared by every profile, so "already taught" is anything any
+  // profile has been introduced to before — keeps the curriculum from
+  // repeating the same new words across texts.
+  const taughtWords = await prisma.word.findMany({ distinct: ["key"], select: { key: true } });
+  const taughtKeys = taughtWords.map((w) => w.key);
 
   let tokenized;
   try {
-    tokenized = await tokenizeText({ rawText, knownKeys, learningKeys });
+    tokenized = await tokenizeText({ rawText, knownKeys: taughtKeys, learningKeys: [] });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Не получилось разметить текст. Попробуй ещё раз." }, { status: 502 });
@@ -43,7 +38,6 @@ export async function POST(req: NextRequest) {
     data: {
       title: tokenized.title,
       sourceUrl,
-      profileId: profile.id,
       tokens: {
         create: tokenized.tokens.map((tok, order) =>
           tok.kind === "plain"
@@ -54,6 +48,14 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true, title: true, sourceUrl: true, createdAt: true },
   });
+
+  const subscribers = await prisma.profile.findMany({
+    where: { telegramChatId: { not: null } },
+    select: { telegramChatId: true },
+  });
+  await Promise.allSettled(
+    subscribers.map((p) => notifyNewText(p.telegramChatId as string, text.title, text.id)),
+  );
 
   return NextResponse.json({ text });
 }
