@@ -18,6 +18,8 @@ export default function AdminPage() {
   const [justAdded, setJustAdded] = useState<string | null>(null);
   const [tgStatus, setTgStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const [tgError, setTgError] = useState<string | null>(null);
+  const [notifying, setNotifying] = useState<string | null>(null);
+  const [notifyResult, setNotifyResult] = useState<string | null>(null);
 
   async function loadTexts() {
     const res = await fetch("/api/admin/texts");
@@ -69,6 +71,19 @@ export default function AdminPage() {
       return;
     }
     setTgStatus("ok");
+  }
+
+  async function onNotify(textId: string) {
+    setNotifying(textId);
+    setNotifyResult(null);
+    const res = await fetch("/api/admin/texts/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ textId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setNotifying(null);
+    setNotifyResult(res.ok ? `Отправлено: ${data.sent} из ${data.total}` : data.error ?? "Не получилось");
   }
 
   return (
@@ -125,6 +140,11 @@ export default function AdminPage() {
       )}
 
       <h1 style={{ marginTop: 48 }}>Сохранённые тексты</h1>
+      {notifyResult && (
+        <p className="hint" style={{ color: "var(--accent-soft)" }}>
+          {notifyResult}
+        </p>
+      )}
       {texts.length === 0 && <p className="hint">Пока пусто.</p>}
       {texts.map((t) => (
         <div className="admin-list-item" key={t.id}>
@@ -132,11 +152,16 @@ export default function AdminPage() {
             <div className="title">{t.title}</div>
             <div className="meta">{new Date(t.createdAt).toLocaleString("ru-RU")}</div>
           </div>
-          {t.sourceUrl && (
-            <a className="source-link" href={t.sourceUrl} target="_blank" rel="noopener">
-              источник
-            </a>
-          )}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {t.sourceUrl && (
+              <a className="source-link" href={t.sourceUrl} target="_blank" rel="noopener">
+                источник
+              </a>
+            )}
+            <button className="btn-secondary" onClick={() => onNotify(t.id)} disabled={notifying === t.id}>
+              {notifying === t.id ? "..." : "Уведомить в Telegram"}
+            </button>
+          </div>
         </div>
       ))}
     </div>
